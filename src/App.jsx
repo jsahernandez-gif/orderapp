@@ -115,6 +115,15 @@ const sb = {
       const r = await fetch(`${SUPA_URL}/storage/v1/object/${bucket}/${path}`, { method: "POST", headers: { apikey: SUPA_KEY, Authorization: `Bearer ${tok()}` }, body: file });
       return r.json();
     },
+    list: async (bucket, prefix = "") => {
+      const r = await fetch(`${SUPA_URL}/storage/v1/object/list/${bucket}`, {
+        method: "POST",
+        headers: { apikey: SUPA_KEY, Authorization: `Bearer ${tok()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ prefix, limit: 100, offset: 0, sortBy: { column: "updated_at", order: "desc" } }),
+      });
+      if (!r.ok) throw new Error("Unable to load images.");
+      return r.json();
+    },
     url: (bucket, path) => `${SUPA_URL}/storage/v1/object/public/${bucket}/${path}`,
   },
 };
@@ -184,7 +193,7 @@ const T = {
     salesDashboard:"Sales Dashboard", salesPerSalesperson:"Sales per Salesperson", pendingPerAgent:"Pending per Agent", collectedPerSalesperson:"Collected per Salesperson",
     weekly:"Weekly", monthly:"Monthly", yearly:"Yearly", custom:"Custom", fromDate:"From", toDate:"To",
     totalSales:"Total Sales", totalPending:"Total Pending", totalCollected:"Total Collected", noChartData:"No sales data for this range.",
-    itemsSummary:"Items Summary", activeFilters:"Filters", importHelpProducts:"Columns: product_name, code, description, category, image, base_price, ITBIS_rate, stock",
+    itemsSummary:"Items Summary", activeFilters:"Filters", allCompanies:"All companies", imageLibrary:"Image Library", uploadImages:"Upload Images", chooseFromLibrary:"Choose from library", uploadNewImage:"Upload new image", noImages:"No images uploaded yet.", imagesUploaded:"Images uploaded ✓", importHelpProducts:"Columns: product_name, code, description, category, image, base_price, ITBIS_rate, stock",
     importHelpClients:"Columns: name, company_name, RNC, phone, email, address, notes", filterClient:"Client", filterStatus:"Status",
     waMsg: (doc, items, total, due) =>
       `Hello ${doc.client_snapshot?.name},\n\nHere is your ${doc.type} *${doc.order_number}*${doc.ncf ? `\nNCF: ${doc.ncf}` : ""}\n\n${items}\n\n*Total: ${total}*${due ? `\nDue: ${due}` : ""}\n\nThank you!`,
@@ -250,7 +259,7 @@ const T = {
     salesDashboard:"Panel de Ventas", salesPerSalesperson:"Ventas por Vendedor", pendingPerAgent:"Pendiente por Agente", collectedPerSalesperson:"Cobrado por Vendedor",
     weekly:"Semanal", monthly:"Mensual", yearly:"Anual", custom:"Personalizado", fromDate:"Desde", toDate:"Hasta",
     totalSales:"Ventas Totales", totalPending:"Pendiente Total", totalCollected:"Cobrado Total", noChartData:"No hay datos de ventas para este rango.",
-    itemsSummary:"Resumen de Artículos", activeFilters:"Filtros", importHelpProducts:"Columnas: product_name, code, description, category, image, base_price, ITBIS_rate, stock",
+    itemsSummary:"Resumen de Artículos", activeFilters:"Filtros", allCompanies:"Todas / Ambas", imageLibrary:"Biblioteca de Imágenes", uploadImages:"Subir Imágenes", chooseFromLibrary:"Elegir de biblioteca", uploadNewImage:"Subir nueva imagen", noImages:"No hay imágenes subidas.", imagesUploaded:"Imágenes subidas ✓", importHelpProducts:"Columnas: product_name, code, description, category, image, base_price, ITBIS_rate, stock",
     importHelpClients:"Columnas: name, company_name, RNC, phone, email, address, notes", filterClient:"Cliente", filterStatus:"Estado",
     waMsg: (doc, items, total, due) =>
       `Hola ${doc.client_snapshot?.name},\n\nAquí está su ${doc.type} *${doc.order_number}*${doc.ncf ? `\nNCF: ${doc.ncf}` : ""}\n\n${items}\n\n*Total: ${total}*${due ? `\nVence: ${due}` : ""}\n\n¡Gracias!`,
@@ -329,6 +338,9 @@ const safeNum = (value) => {
 const clampMoney = (value) => Math.max(0, Number(safeNum(value).toFixed(2)));
 const ITBIS_RATE = 0.18;
 const displayPriceWithItbis = (basePrice) => clampMoney(safeNum(basePrice) * (1 + ITBIS_RATE));
+const priceItemsForCompany = (items = [], company) => (!company || company.tax_enabled) ? items : items.map(item => (
+  item?.tax_included_price ? item : { ...item, base_price: safeNum(item.price), price: displayPriceWithItbis(item.price), tax_included_price: true }
+));
 const normalizeDiscountType = (value) => value === "fixed" ? "fixed" : "percentage";
 const normalizeLineItem = (item = {}) => {
   const qty = Math.max(0, parseInt(item.qty, 10) || 0);
@@ -670,15 +682,25 @@ const Lightbox=({url,onClose})=>(
   </div>
 );
 
+const uploadImageFile=async(file)=>{
+  const path=`${uid()}-${file.name.replace(/\s/g,"_")}`;
+  await sb.storage.upload("images",path,file);
+  return sb.storage.url("images",path);
+};
+const listImageLibrary=async()=>{
+  const rows=await sb.storage.list("images");
+  return (Array.isArray(rows)?rows:[])
+    .filter(file=>file?.name&&!file.name.endsWith("/"))
+    .map(file=>({name:file.name,url:sb.storage.url("images",file.name),updated_at:file.updated_at||file.created_at||""}));
+};
+
 const ImageUploader=({url,onUpload,onRemove,label="Image",size=72})=>{
   const ref=useRef();
   const [busy,setBusy]=useState(false);
   const handle=async(e)=>{
     const f=e.target.files?.[0];if(!f)return;
     setBusy(true);
-    const path=`${uid()}-${f.name.replace(/\s/g,"_")}`;
-    await sb.storage.upload("images",path,f);
-    onUpload(sb.storage.url("images",path));
+    onUpload(await uploadImageFile(f));
     setBusy(false);
   };
   return(
@@ -694,6 +716,51 @@ const ImageUploader=({url,onUpload,onRemove,label="Image",size=72})=>{
     </div>
   );
 };
+
+function ImageLibraryPicker({t,onSelect,selectedUrl,showToast}){
+  const fileRef=useRef();
+  const [images,setImages]=useState([]);
+  const [busy,setBusy]=useState(false);
+  const load=useCallback(async()=>{
+    setBusy(true);
+    try{setImages(await listImageLibrary());}
+    catch(e){showToast?.(e.message);}
+    setBusy(false);
+  },[showToast]);
+  useEffect(()=>{load();},[load]);
+  const uploadMany=async(files)=>{
+    const list=[...files].filter(file=>file.type?.startsWith("image/"));
+    if(!list.length)return;
+    setBusy(true);
+    try{
+      await Promise.all(list.map(uploadImageFile));
+      showToast?.(t.imagesUploaded||"Images uploaded ✓");
+      await load();
+    }catch(e){showToast?.(e.message||"Upload failed.");}
+    setBusy(false);
+  };
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:"12px"}}>
+      <div onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();uploadMany(e.dataTransfer.files);}} style={{border:`1.5px dashed ${C.border}`,borderRadius:"12px",padding:"14px",textAlign:"center",background:C.bg}}>
+        <input ref={fileRef} type="file" accept="image/*" multiple onChange={e=>uploadMany(e.target.files||[])} style={{display:"none"}}/>
+        <Btn size="sm" variant="soft" onClick={()=>fileRef.current?.click()} disabled={busy}>{busy?t.loading:t.uploadImages}</Btn>
+        <div style={{fontSize:"12px",color:C.muted,marginTop:"7px"}}>Drag and drop multiple images here.</div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(82px,1fr))",gap:"8px",maxHeight:"280px",overflowY:"auto"}}>
+        {images.map(img=>(
+          <button key={img.url} onClick={()=>onSelect(img.url)} style={{border:`2px solid ${selectedUrl===img.url?C.accent:C.border}`,borderRadius:"10px",padding:0,overflow:"hidden",background:C.surface,cursor:"pointer",height:"82px"}}>
+            <img src={img.url} alt={img.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+          </button>
+        ))}
+      </div>
+      {!busy&&images.length===0&&<div style={{fontSize:"13px",color:C.muted,textAlign:"center",padding:"16px"}}>{t.noImages}</div>}
+    </div>
+  );
+}
+
+function ImageLibraryModal({t,showToast}){
+  return <ImageLibraryPicker t={t} showToast={showToast} onSelect={()=>{}}/>;
+}
 
 /* ════════════════════════════════════════════════════════════
    PDF — FISCAL (DGII)
@@ -1097,7 +1164,9 @@ function MainApp({user,salesperson,t,fmt,settings,saveSettings,showToast,askConf
       return product?normalizeLineItem({...product,...normalizedEntry,id:product.id}):null;
     })
     .filter(item=>item?.id&&item.qty>0);
-  const amounts=calcOrderAmounts({items:cartItems,discountPct:discount,useTax,taxes:settings.taxes||[]});
+  const effectiveCartItems=priceItemsForCompany(cartItems,selCompany);
+  const visibleTax=!!selCompany?.tax_enabled&&useTax;
+  const amounts=calcOrderAmounts({items:effectiveCartItems,discountPct:discount,useTax:visibleTax,taxes:settings.taxes||[]});
   const subtotal=amounts.grossSubtotal;
   const itemDiscountTotal=amounts.itemDiscountTotal;
   const subtotalAfterItemDiscount=amounts.subtotalAfterItemDiscount;
@@ -1106,6 +1175,7 @@ function MainApp({user,salesperson,t,fmt,settings,saveSettings,showToast,askConf
   const taxTotal=amounts.taxTotal;
   const total=amounts.total;
   const cartCount=cartItems.reduce((s,i)=>s+i.qty,0);
+  const orderCartItems=amounts.normalizedItems;
 
   const setQty=(pid,qty)=>setCart(c=>{
     const prev=getCartEntry(c[pid]);
@@ -1185,7 +1255,7 @@ function MainApp({user,salesperson,t,fmt,settings,saveSettings,showToast,askConf
     if(!co)return;
     const isFiscal=co.tax_enabled&&type==="invoice";
     const dueDate=order.payment_type==="credit"?addDays(order.credit_days||30):null;
-    const orderAmounts=calcOrderAmounts({items:order.items||[],discountPct:order.discount||0,useTax:isFiscal,taxes:settings.taxes||[]});
+    const orderAmounts=calcOrderAmounts({items:priceItemsForCompany(order.items||[],co),discountPct:order.discount||0,useTax:isFiscal,taxes:settings.taxes||[]});
 
     let ncf="";
     if(isFiscal){
@@ -1513,7 +1583,7 @@ function MainApp({user,salesperson,t,fmt,settings,saveSettings,showToast,askConf
   };
 
   const sharedProps={t,fmt,settings,showToast,askConfirm,isAdmin,perm,user,setLightbox};
-  const orderBuilderProps={clients,products,categories,team,companies,ncfConfigs,cart,setQty,setItemDiscountType,setItemDiscountValue,cartItems,subtotal,itemDiscountTotal,subtotalAfterItemDiscount,discount,setDiscount,total,taxLines,discountAmt,taxTotal,cartCount,selClient,setSelClient,selCompany,setSelCompany,activeCat,setActiveCat,searchQ,setSearchQ,notes,setNotes,selSp,setSelSp,useTax,setUseTax,payType,setPayType,creditDays,setCreditDays,finalizeOrder,saveOpenOrder,clearOrder,editingId,salesperson,setModal,orderMode,setOrderMode};
+  const orderBuilderProps={clients,products,categories,team,companies,ncfConfigs,cart,setQty,setItemDiscountType,setItemDiscountValue,cartItems:orderCartItems,subtotal,itemDiscountTotal,subtotalAfterItemDiscount,discount,setDiscount,total,taxLines,discountAmt,taxTotal,cartCount,selClient,setSelClient,selCompany,setSelCompany,activeCat,setActiveCat,searchQ,setSearchQ,notes,setNotes,selSp,setSelSp,useTax,setUseTax,payType,setPayType,creditDays,setCreditDays,finalizeOrder,saveOpenOrder,clearOrder,editingId,salesperson,setModal,orderMode,setOrderMode};
 
   const activeCfg=selCompany?ncfConfigs[selCompany?.id]:null;
   const pctVal=ncfPct(activeCfg);
@@ -1590,7 +1660,7 @@ function MainApp({user,salesperson,t,fmt,settings,saveSettings,showToast,askConf
       )}
       {modal==="clientPick"&&<Sheet title={t.selectClient} onClose={()=>setModal("newOrder")}><ClientPickModal t={t} clients={clients} onPick={c=>{setSelClient(c);setModal("newOrder");}} onNew={()=>setModal("client")}/></Sheet>}
       {modal==="client"&&<Sheet title={editObj?t.edit:t.addClient} onClose={()=>{setModal(null);setEditObj(null);}}><ClientForm t={t} client={editObj} onSave={async c=>{await saveClient(c);setModal(null);setEditObj(null);showToast("Saved ✓");}}/></Sheet>}
-      {modal==="product"&&<Sheet title={editObj?t.edit:t.addProduct} onClose={()=>{setModal(null);setEditObj(null);}}><ProductForm t={t} product={editObj} categories={categories} onSave={async p=>{await saveProduct(p);setModal(null);setEditObj(null);showToast("Saved ✓");}}/></Sheet>}
+      {modal==="product"&&<Sheet title={editObj?t.edit:t.addProduct} onClose={()=>{setModal(null);setEditObj(null);}}><ProductForm t={t} product={editObj} categories={categories} showToast={showToast} onSave={async p=>{await saveProduct(p);setModal(null);setEditObj(null);showToast("Saved ✓");}}/></Sheet>}
       {modal==="person"&&<Sheet title={editObj?t.edit:t.addMember} onClose={()=>{setModal(null);setEditObj(null);}}><PersonForm t={t} person={editObj} onSave={async p=>{try{await savePerson(p);setModal(null);setEditObj(null);showToast("Saved ✓");}catch(e){showToast(e.message||"Unable to save user",4000);}}}/></Sheet>}
       {modal==="company"&&<Sheet title={editObj?t.editCompany:t.addCompany} onClose={()=>{setModal(null);setEditObj(null);}}>
         <CompanyForm t={t} company={editObj} ncfConfig={editObj?ncfConfigs[editObj.id]:null}
@@ -1608,6 +1678,7 @@ function MainApp({user,salesperson,t,fmt,settings,saveSettings,showToast,askConf
       {modal==="catMgr"&&<Sheet title="Categories" onClose={()=>setModal(null)}><CatManager t={t} categories={categories} products={products} saveCat={saveCat} delCat={delCat} renameCat={renameCat} askConfirm={askConfirm}/></Sheet>}
       {modal==="productBulk"&&<Sheet title={t.importProducts} onClose={()=>setModal(null)}><BulkToolsModal t={t} exportLabel={t.exportProducts} onDownloadTemplate={()=>downloadTemplate("products")} onExport={exportProductsCsv} onImport={importProductsFile} helpText={t.importHelpProducts} report={importReport?.entity==="products"?importReport:null}/></Sheet>}
       {modal==="clientBulk"&&<Sheet title={t.importClients} onClose={()=>setModal(null)}><BulkToolsModal t={t} exportLabel={t.exportClients} onDownloadTemplate={()=>downloadTemplate("clients")} onExport={exportClientsCsv} onImport={importClientsFile} helpText={t.importHelpClients} report={importReport?.entity==="clients"?importReport:null}/></Sheet>}
+      {modal==="imageLibrary"&&<Sheet title={t.imageLibrary} onClose={()=>setModal(null)}><ImageLibraryModal t={t} showToast={showToast}/></Sheet>}
       {modal==="invoiceExport"&&<Sheet title={t.exportInvoices} onClose={()=>setModal(null)}><InvoiceExportModal t={t} orders={orders} clients={clients} onExport={filters=>exportInvoicesCsv(filters)}/></Sheet>}
       {modal==="invoice"&&previewDoc&&<Sheet title={`${(previewDoc.type||"").toUpperCase()} · ${previewDoc.order_number}`} onClose={()=>{setModal(null);setPreviewDoc(null);}} wide>
         <InvoicePreview t={t} doc={previewDoc} fmt={mkFmt(previewDoc.currency_symbol||settings.currencySymbol,previewDoc.currency_position||settings.currencyPosition)} company={previewDoc._company||companies.find(c=>c.id===previewDoc.company_id)}/>
@@ -1631,13 +1702,10 @@ function OrdersView({t,fmt,orders,companies,delOrder,updateStatus,setPreviewDoc,
   const [sf,setSf]=useState("all");
   const [coFilter,setCoFilter]=useState("all");
 
-  const openOrders=orders.filter(o=>!o.is_finalized||o.status==="open");
-  const doneOrders=orders.filter(o=>o.is_finalized&&o.status!=="open");
-
-  const filtered=(sf==="open"?openOrders:sf==="all"?orders:doneOrders).filter(o=>{
+  const filtered=orders.filter(o=>{
     const snap=o.client_snapshot||{};
     const mq=!q||match({num:o.order_number,client:snap.name||"",sp:o.salesperson_name||"",ncf:o.ncf||""},q);
-    const ms=sf==="all"||sf==="open"?true:(o.status===sf);
+    const ms=sf==="all"||o.status===sf;
     const mc=coFilter==="all"||o.company_id===coFilter;
     return mq&&ms&&mc;
   });
@@ -1648,18 +1716,20 @@ function OrdersView({t,fmt,orders,companies,delOrder,updateStatus,setPreviewDoc,
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder={t.search} style={{...iBase,flex:1,minWidth:"180px"}}/>
         <Btn variant="ghost" onClick={()=>setModal("invoiceExport")}>{t.exportInvoices}</Btn>
       </div>
-      <div style={{display:"flex",gap:"5px",overflowX:"auto",paddingBottom:"8px",marginBottom:"4px"}}>
-        {["all","open","ordered","delivered","paid","cancelled"].map(s=>{
+      <div style={{display:"flex",gap:"8px",alignItems:"center",overflowX:"auto",paddingBottom:"8px",marginBottom:"4px"}}>
+        {["all","delivered","paid","cancelled"].map(s=>{
           const a=sf===s;
-          const sc=s==="all"?C.accent:s==="open"?C.openOrder:STATUS[s]?.color||C.muted;
+          const sc=s==="all"?C.accent:STATUS[s]?.color||C.muted;
           return<button key={s} onClick={()=>setSf(s)} style={{padding:"5px 12px",borderRadius:"20px",border:`1px solid ${a?sc:C.border}`,whiteSpace:"nowrap",fontWeight:"600",fontSize:"12px",cursor:"pointer",background:a?sc:C.surface,color:a?"#fff":C.muted}}>
             {s==="all"?t.all:t[s]||s}
           </button>;
         })}
-        {companies.length>1&&companies.map(co=>{
-          const a=coFilter===co.id;
-          return<button key={co.id} onClick={()=>setCoFilter(a?"all":co.id)} style={{padding:"5px 12px",borderRadius:"20px",border:`1px solid ${a?(co.tax_enabled?C.fiscal:C.info):C.border}`,whiteSpace:"nowrap",fontWeight:"600",fontSize:"12px",cursor:"pointer",background:a?(co.tax_enabled?C.fiscalSoft:C.infoSoft):C.surface,color:a?(co.tax_enabled?C.fiscal:C.info):C.muted}}>{co.name}</button>;
-        })}
+        {companies.length>1&&(
+          <select value={coFilter} onChange={e=>setCoFilter(e.target.value)} style={{...iBase,minWidth:"180px",padding:"6px 10px",fontSize:"12px",fontWeight:"600"}}>
+            <option value="all">{t.allCompanies}</option>
+            {companies.map(co=><option key={co.id} value={co.id}>{co.name}</option>)}
+          </select>
+        )}
       </div>
 
       <div style={{display:"flex",flexDirection:"column",gap:"8px"}}>
@@ -1874,12 +1944,11 @@ function FinalizeDialog({t,order,companies,settings,onFinalize,onClose,askConfir
 
   // Recalc with tax if fiscal
   const isFiscal=selCo?.tax_enabled&&type==="invoice";
-  const sub=order.subtotal;
-  const dAmt=order.discount_amt;
-  const afterD=sub-dAmt;
-  const tLines=isFiscal?(settings.taxes||[]).filter(tx=>tx.rate>0).map(tx=>({...tx,amt:afterD*(tx.rate/100)})):[];
-  const tTotal=tLines.reduce((s,tx)=>s+tx.amt,0);
-  const tot=afterD+tTotal;
+  const previewAmounts=calcOrderAmounts({items:priceItemsForCompany(order.items||[],selCo),discountPct:order.discount||0,useTax:isFiscal,taxes:settings.taxes||[]});
+  const sub=previewAmounts.grossSubtotal;
+  const dAmt=previewAmounts.orderDiscountAmount;
+  const tLines=previewAmounts.taxLines;
+  const tot=previewAmounts.total;
 
   const go=async()=>{
     setBusy(true);
@@ -1930,7 +1999,7 @@ function FinalizeDialog({t,order,companies,settings,onFinalize,onClose,askConfir
 
           {/* Items */}
           <div style={{display:"flex",flexDirection:"column",gap:"4px",fontSize:"13px"}}>
-            {(order.items||[]).map((i,n)=>(
+            {previewAmounts.normalizedItems.map((i,n)=>(
               <div key={n} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid ${C.border}`}}>
                 <span>{i.name} <span style={{color:C.muted}}>×{i.qty}</span></span>
                 <span style={{fontWeight:"600"}}>{fmt(i.price*i.qty)}</span>
@@ -1970,6 +2039,7 @@ function OrderBuilder({t,fmt,settings,clients,products,categories,team,companies
   const nextNCF=cfg?buildNCF(cfg.prefix,cfg.current_sequence+1,cfg.pad_length):null;
   const canSubmit=!!selClient&&cartItems.length>0;
   const editingOpenOrder=!!editingId&&orderMode==="open";
+  const displayLineAmount=(value)=>selCompany?.tax_enabled?displayPriceWithItbis(value):safeNum(value);
 
   const actionButtons=editingOpenOrder
     ? <div style={{display:"flex",flexDirection:"column",gap:"8px"}}>
@@ -1997,11 +2067,11 @@ function OrderBuilder({t,fmt,settings,clients,products,categories,team,companies
                 <div style={{fontWeight:"600",fontSize:"13px"}}>{i.name}</div>
                 {i.reference_code&&<div style={{fontSize:"11px",color:C.info,fontWeight:"600"}}>{i.reference_code}</div>}
               </div>
-              <div style={{fontWeight:"700",fontSize:"13px"}}>{fmt(displayPriceWithItbis(i.line_total))}</div>
+              <div style={{fontWeight:"700",fontSize:"13px"}}>{fmt(displayLineAmount(i.line_total))}</div>
             </div>
             <div style={{display:"flex",justifyContent:"space-between",fontSize:"12px",color:C.muted}}>
-              <span>{fmt(displayPriceWithItbis(i.price))} × {i.qty}</span>
-              <span>{t.gross}: {fmt(displayPriceWithItbis(i.gross_total))}</span>
+              <span>{fmt(displayLineAmount(i.price))} × {i.qty}</span>
+              <span>{t.gross}: {fmt(displayLineAmount(i.gross_total))}</span>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 110px",gap:"8px"}}>
               <Sel label={t.lineDiscountType} value={i.discount_type} onChange={value=>setItemDiscountType(i.id,value)} options={[{value:"percentage",label:t.percentage},{value:"fixed",label:t.fixed}]}/>
@@ -2221,6 +2291,7 @@ function ProductsView({t,fmt,products,categories,saveProduct,delProduct,saveCat,
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder={t.referenceSearch} style={{...iBase,flex:1,minWidth:"130px"}}/>
         <Btn variant="ghost" onClick={()=>setModal("productBulk")}>{t.importProducts}</Btn>
         <Btn variant="ghost" onClick={()=>setModal("productBulk")}>{t.exportProducts}</Btn>
+        <Btn variant="ghost" onClick={()=>setModal("imageLibrary")}>{t.imageLibrary}</Btn>
         <Btn size="sm" variant="ghost" onClick={()=>setModal("catMgr")}>🏷</Btn>
         <Btn onClick={()=>{setEditObj(null);setModal("product");}}>+</Btn>
       </div>
@@ -2425,14 +2496,23 @@ function ClientForm({t,client,onSave}){
   );
 }
 
-function ProductForm({t,product,categories,onSave}){
+function ProductForm({t,product,categories,onSave,showToast}){
   const [f,setF]=useState({name:"",reference_code:"",category:categories[0]||"",price:"",unit:"unit",image_url:"",...product,price:product?.price?.toString()||""});
   const [nc,setNc]=useState("");
+  const [imageMode,setImageMode]=useState("upload");
   const u=k=>v=>setF(p=>({...p,[k]:v}));
   const validReference=!f.reference_code||/^[a-z0-9_-]+$/i.test(f.reference_code);
   return(
     <div style={{display:"flex",flexDirection:"column",gap:"12px"}}>
-      <ImageUploader url={f.image_url} onUpload={url=>setF(p=>({...p,image_url:url}))} onRemove={()=>setF(p=>({...p,image_url:""}))} label="Product Image"/>
+      <div style={{display:"flex",gap:"8px"}}>
+        <Btn size="sm" variant={imageMode==="upload"?"primary":"soft"} onClick={()=>setImageMode("upload")}>{t.uploadNewImage}</Btn>
+        <Btn size="sm" variant={imageMode==="library"?"primary":"soft"} onClick={()=>setImageMode("library")}>{t.chooseFromLibrary}</Btn>
+      </div>
+      {imageMode==="upload"?(
+        <ImageUploader url={f.image_url} onUpload={url=>setF(p=>({...p,image_url:url}))} onRemove={()=>setF(p=>({...p,image_url:""}))} label="Product Image"/>
+      ):(
+        <ImageLibraryPicker t={t} selectedUrl={f.image_url} showToast={showToast} onSelect={url=>setF(p=>({...p,image_url:url}))}/>
+      )}
       <Inp label={t.name} value={f.name} onChange={u("name")} required/>
       <Inp label={t.referenceCode} value={f.reference_code||""} onChange={u("reference_code")} placeholder="ABC-123"/>
       {!validReference&&<div style={{fontSize:"12px",color:C.danger}}>Use only letters, numbers, hyphens, or underscores.</div>}
