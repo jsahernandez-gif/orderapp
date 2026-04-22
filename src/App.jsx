@@ -494,20 +494,22 @@ const CLIENT_TEMPLATE_ROWS = [
 ];
 const TOUR_TEXT = {
   en: [
-    {tab:"dashboard",title:"Home / Dashboard",body:"See sales by salesperson, pending amounts, collected totals, and filter performance by week, month, year, or custom dates."},
-    {tab:"products",title:"Products",body:"Create products, upload or reuse images, import/export spreadsheets, search by reference code, and manage product prices."},
-    {tab:"clients",title:"Clients",body:"Create customers, review contact details, track owed versus collected amounts, and open each client profile."},
-    {tab:"orders",title:"Orders / Invoicing",body:"Create invoices or quotations, add products to the cart, assign a salesperson, choose the company, and finalize with the correct fiscal or non-fiscal flow."},
-    {tab:"companies",title:"Companies",body:"Manage fiscal and non-fiscal companies, RNC details, NCF/e-CF sequences, expiration dates, and company logos."},
-    {tab:"settings",title:"Settings",body:"Choose language and currency, configure taxes, manage invoice sequence settings, and restart this tutorial anytime."},
+    {tab:"dashboard",title:"Home / Dashboard",body:"This is your quick sales health view. Use the date filters to review weekly, monthly, yearly, or custom performance.",points:["Sales per salesperson appears as bars and totals.","Pending shows unpaid invoices by agent.","Collected shows paid invoice totals."],hint:"The tutorial moves to each tab automatically; the screen stays usable behind this card."},
+    {tab:"products",title:"Products",body:"This tab is where your catalog is managed. The controls at the top let you search, import/export, open the image library, select all visible products, and add a new product.",points:["Use + to create a product.","Use Import/Export for Excel files.","Use Image Library to upload or reuse product images.","Use checkboxes and Select all for bulk delete."],hint:"No demo product is created during the tutorial."},
+    {tab:"clients",title:"Clients",body:"This tab manages customers and their balance history. You can search, import/export, add clients, view profiles, and bulk-select visible clients.",points:["Use + Add Client to create a customer.","Client cards show collected and owed amounts.","Open View Profile for client order history.","Use Select all only for the visible filtered list."],hint:"No demo client is created during the tutorial."},
+    {tab:"orders",title:"Orders / Pedidos",body:"This is the daily sales workspace. Use + New Order, search, status chips, company dropdown, and the order list actions.",points:["Status chips filter delivered, paid, or cancelled orders.","The company dropdown combines with status/search filters.","Each order can be viewed, edited, updated, or deleted by admins."],hint:"The controls remain visible so you can learn where they live."},
+    {tab:"orders",title:"Invoicing / Facturas",body:"Invoices are created from the order flow. Product prices stay customer-facing, then the selected company decides whether taxes are visible or hidden.",points:["Fiscal/RNC companies show subtotal, ITBIS, NCF/e-CF, and total.","Non-fiscal companies charge the ITBIS-included price without showing a tax line.","Credit invoices can include due dates and salesperson assignment."],hint:"This step explains the billing behavior without creating a real invoice."},
+    {tab:"companies",title:"Companies",body:"Companies control fiscal behavior. This is where you manage commercial and fiscal companies, logos, RNC, and NCF/e-CF configuration.",points:["Fiscal enabled companies expose NCF/e-CF prefix, sequence, and expiration date.","Non-fiscal companies hide tax breakdowns on invoices.","Admins can delete companies only after password confirmation and dependency checks."],hint:"Company fiscal configuration is per company, not global."},
+    {tab:"settings",title:"Settings",body:"Settings holds app-wide preferences and admin tools. Language changes apply immediately and this tutorial can be replayed here.",points:["Change language and currency.","Configure tax labels/rates and normal invoice sequence.","Admins see the Danger Zone for protected destructive actions.","Use View tutorial again to restart this guide."],hint:"You can replay this tour anytime from Settings."},
   ],
   es: [
-    {tab:"dashboard",title:"Inicio / Panel",body:"Consulta ventas por vendedor, montos pendientes, cobros y filtra el rendimiento por semana, mes, año o fechas personalizadas."},
-    {tab:"products",title:"Productos",body:"Crea productos, sube o reutiliza imágenes, importa/exporta Excel, busca por código de referencia y administra precios."},
-    {tab:"clients",title:"Clientes",body:"Crea clientes, revisa datos de contacto, ve lo pendiente versus cobrado y abre el perfil de cada cliente."},
-    {tab:"orders",title:"Pedidos / Facturas",body:"Crea facturas o cotizaciones, agrega productos al carrito, asigna vendedor, elige empresa y finaliza con flujo fiscal o no fiscal."},
-    {tab:"companies",title:"Empresas",body:"Administra empresas fiscales y no fiscales, RNC, secuencias NCF/e-CF, vencimientos y logos."},
-    {tab:"settings",title:"Ajustes",body:"Elige idioma y moneda, configura impuestos, administra la secuencia de facturas y reinicia este tutorial cuando quieras."},
+    {tab:"dashboard",title:"Inicio / Panel",body:"Esta es la vista rápida de salud de ventas. Usa los filtros de fecha para revisar semana, mes, año o rangos personalizados.",points:["Las ventas por vendedor aparecen como barras y totales.","Pendiente muestra facturas no pagadas por agente.","Cobrado muestra los totales de facturas pagadas."],hint:"El tutorial se mueve por cada pestaña automáticamente; la pantalla sigue visible y usable detrás de esta tarjeta."},
+    {tab:"products",title:"Productos",body:"Aquí administras el catálogo. Arriba puedes buscar, importar/exportar, abrir la biblioteca de imágenes, seleccionar productos visibles y agregar productos.",points:["Usa + para crear un producto.","Usa Importar/Exportar para archivos Excel.","Usa Biblioteca de Imágenes para subir o reutilizar imágenes.","Usa checkboxes y Seleccionar todos para eliminar en grupo."],hint:"El tutorial no crea productos demo."},
+    {tab:"clients",title:"Clientes",body:"Aquí administras clientes y su historial de balances. Puedes buscar, importar/exportar, agregar clientes, ver perfiles y seleccionar clientes visibles.",points:["Usa + Agregar Cliente para crear un cliente.","Las tarjetas muestran cobrado y pendiente.","Abre Ver Perfil para historial de pedidos.","Seleccionar todos aplica solo a la lista visible filtrada."],hint:"El tutorial no crea clientes demo."},
+    {tab:"orders",title:"Pedidos",body:"Este es el espacio diario de ventas. Usa + Nuevo Pedido, búsqueda, estados, filtro de empresa y acciones de la lista.",points:["Los estados filtran entregado, pagado o cancelado.","El filtro de empresa se combina con estado y búsqueda.","Cada pedido se puede ver, editar, cambiar de estado o eliminar si eres admin."],hint:"Los controles quedan visibles para que aprendas dónde están."},
+    {tab:"orders",title:"Facturación",body:"Las facturas se crean desde el flujo de pedidos. Los precios se mantienen de cara al cliente y la empresa seleccionada decide si el impuesto se muestra o queda incluido.",points:["Empresas fiscales/RNC muestran subtotal, ITBIS, NCF/e-CF y total.","Empresas no fiscales cobran precio con ITBIS incluido sin mostrar línea de impuesto.","Facturas a crédito pueden incluir vencimiento y vendedor asignado."],hint:"Este paso explica la facturación sin crear una factura real."},
+    {tab:"companies",title:"Empresas",body:"Las empresas controlan el comportamiento fiscal. Aquí administras empresas comerciales y fiscales, logos, RNC y configuración NCF/e-CF.",points:["Empresas fiscales muestran prefijo, secuencia y vencimiento NCF/e-CF.","Empresas no fiscales ocultan el desglose de impuesto en factura.","Admins pueden eliminar empresas solo con contraseña y validación de dependencias."],hint:"La configuración fiscal es por empresa, no global."},
+    {tab:"settings",title:"Ajustes",body:"Ajustes contiene preferencias generales y herramientas administrativas. El idioma cambia inmediatamente y este tutorial se puede repetir aquí.",points:["Cambia idioma y moneda.","Configura impuestos y secuencia normal de facturas.","Admins ven la Zona Peligrosa para acciones protegidas.","Usa Ver tutorial otra vez para reiniciar esta guía."],hint:"Puedes repetir este recorrido cuando quieras desde Ajustes."},
   ],
 };
 const tutorialDoneKey = (userId) => `orderapp:tutorial-complete:${userId||"guest"}`;
@@ -897,7 +899,7 @@ function TutorialOverlay({t,lang,userId,onLanguage,onNavigate,onComplete,onSkip}
   const finish=()=>onComplete();
   if(phase==="language"){
     return(
-      <div style={{position:"fixed",inset:0,zIndex:900,background:"rgba(15,23,42,.55)",backdropFilter:"blur(5px)",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px"}}>
+      <div style={{position:"fixed",inset:0,zIndex:900,background:"rgba(15,23,42,.18)",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px"}}>
         <Card style={{width:"100%",maxWidth:"380px",boxShadow:C.shadowMd}}>
           <div style={{fontSize:"12px",fontWeight:"800",color:C.accent,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:"8px"}}>{t.tutorial}</div>
           <div style={{fontSize:"22px",fontWeight:"900",letterSpacing:"-0.04em",marginBottom:"8px"}}>{t.chooseLanguage}</div>
@@ -913,9 +915,10 @@ function TutorialOverlay({t,lang,userId,onLanguage,onNavigate,onComplete,onSkip}
   }
   return(
     <div style={{position:"fixed",inset:0,zIndex:900,pointerEvents:"none"}}>
-      <div style={{position:"absolute",inset:0,background:"rgba(15,23,42,.38)",backdropFilter:"blur(2px)"}}/>
-      <div style={{position:"absolute",left:"50%",bottom:"calc(74px + env(safe-area-inset-bottom))",transform:"translateX(-50%)",width:"min(92vw,430px)",pointerEvents:"auto"}}>
-        <Card style={{boxShadow:C.shadowMd,border:`2px solid ${C.accent}22`}}>
+      <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(255,255,255,.06),rgba(15,23,42,.08))"}}/>
+      <div style={{position:"absolute",inset:"10px",border:`2px solid ${C.accent}33`,borderRadius:"18px",boxShadow:`inset 0 0 0 9999px rgba(255,255,255,.03)`,pointerEvents:"none"}}/>
+      <div style={{position:"absolute",left:"50%",bottom:"calc(70px + env(safe-area-inset-bottom))",transform:"translateX(-50%)",width:"min(94vw,520px)",pointerEvents:"auto"}}>
+        <Card style={{boxShadow:"0 18px 50px rgba(20,30,50,.22)",border:`2px solid ${C.accent}33`,background:"rgba(255,255,255,.96)",backdropFilter:"blur(8px)"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"10px",marginBottom:"8px"}}>
             <div style={{fontSize:"11px",fontWeight:"800",color:C.accent,textTransform:"uppercase",letterSpacing:"0.08em"}}>{t.tutorial}</div>
             <div style={{fontSize:"12px",color:C.muted}}>{index+1}/{steps.length}</div>
@@ -925,6 +928,17 @@ function TutorialOverlay({t,lang,userId,onLanguage,onNavigate,onComplete,onSkip}
           </div>
           <div style={{fontSize:"20px",fontWeight:"900",letterSpacing:"-0.04em",marginBottom:"8px"}}>{step.title}</div>
           <div style={{fontSize:"14px",lineHeight:"1.55",color:C.muted,marginBottom:"16px"}}>{step.body}</div>
+          {step.points?.length>0&&(
+            <div style={{display:"grid",gap:"6px",marginBottom:"14px"}}>
+              {step.points.map((point,i)=>(
+                <div key={i} style={{display:"flex",gap:"8px",fontSize:"13px",lineHeight:"1.45",color:C.text}}>
+                  <span style={{color:C.accent,fontWeight:"900"}}>•</span>
+                  <span>{point}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {step.hint&&<div style={{fontSize:"12px",color:C.info,background:C.infoSoft,borderRadius:"9px",padding:"9px 11px",lineHeight:"1.45",marginBottom:"14px"}}>{step.hint}</div>}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"8px"}}>
             <Btn variant="ghost" full onClick={onSkip}>{t.skipTutorial}</Btn>
             <Btn variant="soft" full disabled={index===0} onClick={()=>setIndex(i=>Math.max(0,i-1))}>{t.back}</Btn>
