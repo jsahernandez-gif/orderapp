@@ -719,6 +719,16 @@ const Lightbox=({url,onClose})=>(
   </div>
 );
 
+const storageRenderUrl=(url,width=320,height=220)=>{
+  const path=storagePathFromImageUrl(url);
+  if(!path)return url;
+  const encodedPath=path.split("/").map(encodeURIComponent).join("/");
+  return `${SUPA_URL}/storage/v1/render/image/public/images/${encodedPath}?width=${width}&height=${height}&resize=cover&quality=70`;
+};
+const imgFallback=(originalUrl)=>(e)=>{
+  if(originalUrl&&e.currentTarget.src!==originalUrl)e.currentTarget.src=originalUrl;
+};
+
 const uploadImageFile=async(file)=>{
   const path=`${uid()}-${file.name.replace(/\s/g,"_")}`;
   await sb.storage.upload("images",path,file);
@@ -748,7 +758,7 @@ const ImageUploader=({url,onUpload,onRemove,label="Image",size=72})=>{
   return(
     <div style={{display:"flex",alignItems:"center",gap:"14px"}}>
       <div onClick={()=>!url&&ref.current?.click()} style={{width:size,height:size,borderRadius:"10px",overflow:"hidden",border:`1.5px dashed ${url?"transparent":C.border}`,background:url?"transparent":C.bg,display:"flex",alignItems:"center",justifyContent:"center",cursor:url?"default":"pointer",flexShrink:0}}>
-        {url?<img src={url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<span style={{fontSize:"22px"}}>📷</span>}
+        {url?<img src={storageRenderUrl(url,size*2,size*2)} loading="lazy" decoding="async" onError={imgFallback(url)} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<span style={{fontSize:"22px"}}>📷</span>}
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:"7px"}}>
         <Btn size="sm" variant="soft" onClick={()=>ref.current?.click()} disabled={busy}>{busy?"Uploading…":url?"Change":label}</Btn>
@@ -816,7 +826,7 @@ function ImageLibraryPicker({t,onSelect,selectedUrl,showToast,onDeleteSelected,a
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(82px,1fr))",gap:"8px",maxHeight:"280px",overflowY:"auto"}}>
         {images.map(img=>(
           <button key={img.url} onClick={()=>allowDelete?toggleSelected(img.url):onSelect(img.url)} style={{position:"relative",border:`2px solid ${selectedUrl===img.url||selected[img.url]?C.accent:C.border}`,borderRadius:"10px",padding:0,overflow:"hidden",background:C.surface,cursor:"pointer",height:"82px"}}>
-            <img src={img.url} alt={img.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+            <img src={storageRenderUrl(img.url,180,180)} alt={img.name} loading="lazy" decoding="async" onError={imgFallback(img.url)} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
             {allowDelete&&<span style={{position:"absolute",top:5,left:5,width:18,height:18,borderRadius:"5px",background:selected[img.url]?C.accent:"#fff",border:`1px solid ${C.border}`,boxShadow:C.shadowSm}}/>}
           </button>
         ))}
@@ -2293,13 +2303,16 @@ function FinalizeDialog({t,order,companies,settings,onFinalize,onClose,askConfir
 function OrderBuilder({t,fmt,settings,clients,products,categories,team,companies,ncfConfigs,cart,setQty,setItemDiscountType,setItemDiscountValue,cartItems,subtotal,itemDiscountTotal,subtotalAfterItemDiscount,discount,setDiscount,total,taxLines,discountAmt,taxTotal,cartCount,selClient,setSelClient,selCompany,setSelCompany,activeCat,setActiveCat,searchQ,setSearchQ,notes,setNotes,selSp,setSelSp,useTax,setUseTax,payType,setPayType,creditDays,setCreditDays,finalizeOrder,saveOpenOrder,clearOrder,editingId,salesperson,setModal,orderMode,setOrderMode}){
   const [showMore,setShowMore]=useState(false);
   const [lb,setLb]=useState(null);
+  const [productLimit,setProductLimit]=useState(80);
   const isDesktop=useMediaQuery("(min-width: 980px)");
   const filtered=products.filter(p=>(activeCat==="All"||p.category===activeCat)&&match(p,searchQ));
+  const visibleProducts=filtered.slice(0,productLimit);
   const cfg=selCompany?ncfConfigs[selCompany.id]:null;
   const nextNCF=cfg?buildNCF(cfg.prefix,cfg.current_sequence+1,cfg.pad_length):null;
   const canSubmit=!!selClient&&cartItems.length>0;
   const editingOpenOrder=!!editingId&&orderMode==="open";
   const displayLineAmount=(value)=>selCompany?.tax_enabled?displayPriceWithItbis(value):safeNum(value);
+  useEffect(()=>setProductLimit(80),[activeCat,searchQ]);
 
   const actionButtons=editingOpenOrder
     ? <div style={{display:"flex",flexDirection:"column",gap:"8px"}}>
@@ -2395,7 +2408,7 @@ function OrderBuilder({t,fmt,settings,clients,products,categories,team,companies
 
         {selClient?(
           <div style={{display:"flex",alignItems:"center",gap:"10px",background:C.accentSoft,borderRadius:"10px",padding:"10px 13px"}}>
-            {selClient.image_url?<img src={selClient.image_url} style={{width:30,height:30,borderRadius:"50%",objectFit:"cover",flexShrink:0}}/>:<div style={{width:30,height:30,borderRadius:"50%",background:C.accent,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:"700",fontSize:"13px",flexShrink:0}}>{selClient.name?.[0]}</div>}
+            {selClient.image_url?<img src={storageRenderUrl(selClient.image_url,80,80)} loading="lazy" decoding="async" onError={imgFallback(selClient.image_url)} style={{width:30,height:30,borderRadius:"50%",objectFit:"cover",flexShrink:0}}/>:<div style={{width:30,height:30,borderRadius:"50%",background:C.accent,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:"700",fontSize:"13px",flexShrink:0}}>{selClient.name?.[0]}</div>}
             <div style={{flex:1,minWidth:0}}><div style={{fontWeight:"600",fontSize:"13px"}}>{selClient.name}</div>{selClient.rnc&&<div style={{fontSize:"11px",color:C.muted}}>RNC: {selClient.rnc}</div>}</div>
             <Btn size="sm" variant="ghost" onClick={()=>setSelClient(null)}>{t.change}</Btn>
           </div>
@@ -2433,12 +2446,12 @@ function OrderBuilder({t,fmt,settings,clients,products,categories,team,companies
         <input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder={`🔍 ${t.referenceSearch}`} style={iBase}/>
 
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:"8px"}}>
-          {filtered.map(p=>{
+          {visibleProducts.map(p=>{
             const entry=getCartEntry(cart[p.id]);
             const qty=entry.qty;
             return(
               <div key={p.id} style={{background:qty>0?C.accentSoft:C.bg,border:`1.5px solid ${qty>0?C.accent:C.border}`,borderRadius:"10px",padding:"10px",display:"flex",flexDirection:"column",gap:"6px"}}>
-                {p.image_url&&<div onClick={()=>setLb(p.image_url)} style={{cursor:"zoom-in"}}><img src={p.image_url} style={{width:"100%",height:"68px",objectFit:"cover",borderRadius:"7px"}}/></div>}
+                {p.image_url&&<div onClick={()=>setLb(p.image_url)} style={{cursor:"zoom-in"}}><img src={storageRenderUrl(p.image_url,320,170)} loading="lazy" decoding="async" onError={imgFallback(p.image_url)} style={{width:"100%",height:"68px",objectFit:"cover",borderRadius:"7px"}}/></div>}
                 <div style={{fontSize:"10px",color:C.muted,textTransform:"uppercase"}}>{p.category}</div>
                 <div style={{fontWeight:"600",fontSize:"13px",lineHeight:"1.3"}}>{p.name}</div>
                 {p.reference_code&&<div style={{fontSize:"11px",color:C.info,fontWeight:"600"}}>{p.reference_code}</div>}
@@ -2451,6 +2464,11 @@ function OrderBuilder({t,fmt,settings,clients,products,categories,team,companies
               </div>
             );
           })}
+          {filtered.length>productLimit&&(
+            <div style={{gridColumn:"1/-1",display:"flex",justifyContent:"center",padding:"8px"}}>
+              <Btn variant="soft" onClick={()=>setProductLimit(v=>v+80)}>{t.more} ({Math.min(productLimit+80,filtered.length)}/{filtered.length})</Btn>
+            </div>
+          )}
         </div>
 
         <button onClick={()=>setShowMore(v=>!v)} style={{background:"none",border:`1px dashed ${C.border}`,borderRadius:"8px",padding:"8px",color:C.muted,fontSize:"12px",cursor:"pointer",fontFamily:"inherit"}}>
@@ -2534,7 +2552,7 @@ function ClientsView({t,fmt,clients,orders,saveClient,delClient,setModal,setEdit
             <Card key={c.id}>
               <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
                 <input type="checkbox" checked={!!selected[c.id]} onChange={()=>toggleSelected(c.id)} style={{width:18,height:18}}/>
-                {c.image_url?<img src={c.image_url} onClick={()=>setLightbox(c.image_url)} style={{width:40,height:40,borderRadius:"50%",objectFit:"cover",flexShrink:0,cursor:"zoom-in"}}/>:<div style={{width:40,height:40,borderRadius:"50%",background:C.accentSoft,color:C.accent,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:"700",fontSize:"15px",flexShrink:0}}>{c.name?.[0]}</div>}
+                {c.image_url?<img src={storageRenderUrl(c.image_url,100,100)} loading="lazy" decoding="async" onError={imgFallback(c.image_url)} onClick={()=>setLightbox(c.image_url)} style={{width:40,height:40,borderRadius:"50%",objectFit:"cover",flexShrink:0,cursor:"zoom-in"}}/>:<div style={{width:40,height:40,borderRadius:"50%",background:C.accentSoft,color:C.accent,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:"700",fontSize:"15px",flexShrink:0}}>{c.name?.[0]}</div>}
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontWeight:"600",fontSize:"14px"}}>{c.name}</div>
                   <div style={{fontSize:"12px",color:C.muted}}>{[c.email,c.phone,c.rnc?`RNC: ${c.rnc}`:""].filter(Boolean).join(" · ")}</div>
@@ -2602,7 +2620,7 @@ function ProductsView({t,fmt,products,categories,saveProduct,delProduct,saveCat,
         {visibleProducts.map(p=>(
           <Card key={p.id} pad={12}>
             <input type="checkbox" checked={!!selected[p.id]} onChange={()=>toggleSelected(p.id)} style={{width:18,height:18,marginBottom:"8px"}}/>
-            {p.image_url&&<div onClick={()=>setLightbox(p.image_url)} style={{marginBottom:"8px",cursor:"zoom-in"}}><img src={p.image_url} loading="lazy" decoding="async" style={{width:"100%",height:"86px",objectFit:"cover",borderRadius:"8px"}}/></div>}
+            {p.image_url&&<div onClick={()=>setLightbox(p.image_url)} style={{marginBottom:"8px",cursor:"zoom-in"}}><img src={storageRenderUrl(p.image_url,360,210)} loading="lazy" decoding="async" onError={imgFallback(p.image_url)} style={{width:"100%",height:"86px",objectFit:"cover",borderRadius:"8px"}}/></div>}
             <div style={{fontSize:"10px",color:C.muted,textTransform:"uppercase",marginBottom:"3px"}}>{p.category}</div>
             <div style={{fontWeight:"600",fontSize:"13px",marginBottom:"4px"}}>{p.name}</div>
             {p.reference_code&&<div style={{fontSize:"11px",color:C.info,fontWeight:"600",marginBottom:"4px"}}>{p.reference_code}</div>}
@@ -2637,7 +2655,7 @@ function CompaniesView({t,companies,saveCompany,ncfConfigs,setNcfConfigs,setModa
           return(
             <Card key={co.id} style={{borderLeft:`3px solid ${co.tax_enabled?C.fiscal:C.info}`}}>
               <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
-                {co.logo?<img src={co.logo} style={{width:44,height:44,objectFit:"contain",borderRadius:"8px",border:`1px solid ${C.border}`,padding:"4px",background:"#fff"}}/>:<div style={{width:44,height:44,borderRadius:"8px",background:co.tax_enabled?C.fiscalSoft:C.accentSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"20px"}}>🏢</div>}
+                {co.logo?<img src={storageRenderUrl(co.logo,120,120)} loading="lazy" decoding="async" onError={imgFallback(co.logo)} style={{width:44,height:44,objectFit:"contain",borderRadius:"8px",border:`1px solid ${C.border}`,padding:"4px",background:"#fff"}}/>:<div style={{width:44,height:44,borderRadius:"8px",background:co.tax_enabled?C.fiscalSoft:C.accentSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"20px"}}>🏢</div>}
                 <div style={{flex:1}}>
                   <div style={{fontWeight:"700",fontSize:"14px"}}>{co.name}</div>
                   {co.rnc&&<div style={{fontSize:"12px",color:C.muted}}>RNC: {co.rnc}</div>}
@@ -2931,7 +2949,7 @@ function ClientPickModal({t,clients,onPick,onNew}){
       <div style={{display:"flex",flexDirection:"column",gap:"6px"}}>
         {clients.filter(c=>match(c,q)).map(c=>(
           <button key={c.id} onClick={()=>onPick(c)} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:"10px",padding:"11px 13px",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:"10px"}}>
-            {c.image_url?<img src={c.image_url} style={{width:32,height:32,borderRadius:"50%",objectFit:"cover",flexShrink:0}}/>:<div style={{width:32,height:32,borderRadius:"50%",background:C.accentSoft,color:C.accent,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:"700",fontSize:"13px",flexShrink:0}}>{c.name?.[0]}</div>}
+            {c.image_url?<img src={storageRenderUrl(c.image_url,80,80)} loading="lazy" decoding="async" onError={imgFallback(c.image_url)} style={{width:32,height:32,borderRadius:"50%",objectFit:"cover",flexShrink:0}}/>:<div style={{width:32,height:32,borderRadius:"50%",background:C.accentSoft,color:C.accent,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:"700",fontSize:"13px",flexShrink:0}}>{c.name?.[0]}</div>}
             <div>
               <div style={{fontWeight:"600",fontSize:"13px"}}>{c.name}</div>
               <div style={{fontSize:"11px",color:C.muted}}>{c.email}{c.rnc?` · RNC: ${c.rnc}`:""}</div>
@@ -2951,7 +2969,7 @@ function ClientProfileView({t,fmt,client,orders,companies,loadEditOrder}){
   return(
     <div style={{display:"flex",flexDirection:"column",gap:"14px"}}>
       <div style={{display:"flex",gap:"12px",alignItems:"center"}}>
-        {client.image_url?<img src={client.image_url} style={{width:52,height:52,borderRadius:"50%",objectFit:"cover"}}/>:<div style={{width:52,height:52,borderRadius:"50%",background:C.accentSoft,color:C.accent,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:"700",fontSize:"20px"}}>{client.name?.[0]}</div>}
+        {client.image_url?<img src={storageRenderUrl(client.image_url,120,120)} loading="lazy" decoding="async" onError={imgFallback(client.image_url)} style={{width:52,height:52,borderRadius:"50%",objectFit:"cover"}}/>:<div style={{width:52,height:52,borderRadius:"50%",background:C.accentSoft,color:C.accent,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:"700",fontSize:"20px"}}>{client.name?.[0]}</div>}
         <div>
           <div style={{fontWeight:"700",fontSize:"17px"}}>{client.name}</div>
           <div style={{fontSize:"12px",color:C.muted}}>{[client.email,client.phone].filter(Boolean).join(" · ")}</div>
@@ -3078,7 +3096,7 @@ function InvoicePreview({t,doc,fmt,company,ncfConfig}){
       {/* Company */}
       {company&&(
         <div style={{background:C.bg,borderRadius:"9px",padding:"10px 12px",display:"flex",alignItems:"center",gap:"10px"}}>
-          {company.logo&&<img src={company.logo} style={{height:"28px",maxWidth:"80px",objectFit:"contain"}}/>}
+          {company.logo&&<img src={storageRenderUrl(company.logo,160,80)} loading="lazy" decoding="async" onError={imgFallback(company.logo)} style={{height:"28px",maxWidth:"80px",objectFit:"contain"}}/>}
           <div>
             <div style={{fontWeight:"600",fontSize:"13px"}}>{company.name}</div>
             {company.rnc&&isFiscal&&<div style={{fontSize:"11px",color:C.muted}}>RNC: {company.rnc}</div>}
